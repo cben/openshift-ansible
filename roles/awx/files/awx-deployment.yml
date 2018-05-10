@@ -6,8 +6,17 @@ parameters:
 - name: NAMESPACE
 - name: AWX_WEB_IMAGE
 - name: AWX_TASK_IMAGE
+- name: SECRET_KEY
 
 objects:
+
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: awx
+    namespace: ${NAMESPACE}
+  stringData:
+    secret-key: ${SECRET_KEY}
 
 - apiVersion: extensions/v1beta1
   kind: Deployment
@@ -30,6 +39,9 @@ objects:
             volumeMounts:
               - mountPath: /etc/tower
                 name: awx-application-config
+              - mountPath: /etc/tower/SECRET_KEY
+                name: secret-key
+                subPath: SECRET_KEY
             env:
               - name: DATABASE_PASSWORD
                 valueFrom:
@@ -41,6 +53,9 @@ objects:
             volumeMounts:
               - mountPath: /etc/tower
                 name: awx-application-config
+              - mountPath: /etc/tower/SECRET_KEY
+                name: secret-key
+                subPath: SECRET_KEY
             env:
               - name: DATABASE_USER
                 value: awx
@@ -81,8 +96,12 @@ objects:
               items:
                 - key: awx_settings
                   path: settings.py
-                - key: secret_key
-                  path: SECRET_KEY
+          - name: secret-key
+            secret:
+              secretName: awx
+              items:
+              - key: secret-key
+                path: SECRET_KEY
 
 - apiVersion: v1
   kind: Service

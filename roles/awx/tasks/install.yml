@@ -50,18 +50,6 @@
   - awx-deployment.yml
   - settings.py
 
-- name: Read Existing AWX ConfigMap
-  oc_configmap:
-    state: list
-    namespace: "{{ awx_project }}"
-    name: awx-config
-  register: awx_config
-  no_log: true
-
-- name: Get or Generate AWX secret_key
-  set_fact:
-    awx_secret_key: "{{ (awx_config.results.results[0].data | default({})).secret_key | default(16 | lib_utils_oo_random_word) }}"
-  no_log: true
 # TODO: other possible secrets that need (?) randomization:
 # RABBITMQ_ERLANG_COOKIE
 # RABBITMQ_DEFAULT_PASS
@@ -71,10 +59,21 @@
   oc_configmap:
     name: awx-config
     namespace: "{{ awx_project }}"
-    from_literal:
-      secret_key: "{{ awx_secret_key }}"
     from_file:
       awx_settings: "{{ mktemp.stdout }}/settings.py"
+
+- name: Read Existing AWX Secret
+  oc_secret:
+    state: list
+    namespace: "{{ awx_project }}"
+    name: awx
+    decode: true
+  register: awx_secret
+  no_log: true
+
+- name: Get or Generate AWX secret_key
+  set_fact:
+    awx_secret_key: "{{ awx_secret.results.decoded['secret_key'] | default(16 | lib_utils_oo_random_word) }}"
   no_log: true
 
 - name: Apply the AWX Deployment Template
@@ -83,6 +82,7 @@
     --param NAMESPACE={{ awx_project }}
     --param AWX_WEB_IMAGE={{ awx_web_openshift_image }}
     --param AWX_TASK_IMAGE={{ awx_task_openshift_image }}
+    --param SECRET_KEY={{ awx_secret_key }}
     | {{ openshift_client_binary }} apply -f -
   register: apply
   changed_when: "'created' in apply.stdout or 'configured' in apply.stdout"
